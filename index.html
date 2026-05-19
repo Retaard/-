@@ -12,7 +12,7 @@
             --bg-color: #000000;
             --text-color: #ffffff;
             --dim-text: rgba(255, 255, 255, 0.5);
-            --line-color: rgba(255, 255, 255, 0.13); 
+            --line-color: rgba(255, 255, 255, 0.9); 
             --font-serif: 'EB Garamond', serif;
         }
 
@@ -347,7 +347,7 @@
                 
                 g.selectAll(".link")
                     .style("stroke-opacity", 0.3 + (average / 255) * 0.5)
-                    .style("stroke-width", (1.5 + (average / 255) * 2) + "px");
+                    .style("stroke-width", (0.9 + (average / 255) * 2) + "px");
 
                 if (average > 65) {
                     nodes.forEach(d => {
