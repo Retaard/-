@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>test v0.1 before publish</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --text-color: #ffffff;
+            --dim-text: rgba(255, 255, 255, 0.5);
+            --line-color: rgba(255, 255, 255, 0.13); 
+            --font-serif: 'EB Garamond', serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-serif);
+            overflow: hidden;
+            height: 100vh;
+            letter-spacing: 0.15em;
+        }
+
+        #viewport {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #svg-container {
+            width: 100%;
+            height: 100%;
+            cursor: default;
+        }
+
+      
+        #description-panel {
+            position: fixed;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70%;
+            max-width: 700px;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+            z-index: 100;
+        }
+
+        #description-panel.visible {
+            opacity: 1;
+        }
+
+        #description-content {
+            font-size: 1.4rem;
+            line-height: 1.8;
+            font-style: italic;
+            color: var(--dim-text);
+        }
+
+        #description-content img {
+            max-width: 250px;
+            display: block;
+            margin: 25px auto;
+            filter: grayscale(100%) contrast(110%);
+            opacity: 0.8;
+        }
+
+    
+        .node {
+            cursor: pointer;
+            pointer-events: all;
+        }
+
+        .node circle {
+            fill: #fff;
+            stroke: none;
+            opacity: 0.5;
+        }
+
+        .node text {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            fill: var(--dim-text);
+            transition: fill 0.4s, font-size 0.4s;
+        }
+
+        .node:hover text {
+            fill: #fff;
+        }
+
+        .node.selected text {
+            fill: #fff;
+            font-size: 15px;
+        }
+
+        .link {
+            fill: none;
+            stroke: var(--line-color);
+            stroke-width: 1.5px;
+            opacity: 0.8;
+        }
+
+        
+        #start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            cursor: pointer;
+            transition: opacity 2s ease-in-out;
+        }
+
+        .start-text {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8em;
+            color: rgba(255, 255, 255, 0.3);
+            animation: breathe 4s infinite ease-in-out;
+            font-style: italic;
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.2; letter-spacing: 0.8em; }
+            50% { opacity: 0.6; letter-spacing: 0.9em; }
+        }
+
+      
+        .glitch-active {
+            filter: url(#glitch-filter);
+        }
+
+        #audio-player {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" onclick="startExperience()">
+        <div class="start-text">Enter the Void</div>
+    </div>
+
+    <audio id="audio-player" loop>
+        <source src="130.mp3" type="audio/mpeg">
+    </audio>
+
+
+    <svg style="position: absolute; width: 0; height: 0;">
+        <defs>
+            <filter id="glitch-filter">
+                <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="20" />
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="viewport">
+        <div id="svg-container"></div>
+        <div id="description-panel">
+            <div id="description-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let data = {
+            name: "The Void",
+            desc: "I'm in hell now seeing you above.",
+            children: [
+                { 
+                    name: "When", 
+                    desc: "Time is a flat circle. We are trapped in a loop of our own making.",
+                    children: [
+                        { name: "Past", desc: "A ghost that haunts the present." },
+                        { name: "Future", desc: "A dream that never arrives." }
+                    ]
+                },
+                { 
+                    name: "Where", 
+                    desc: "In the spaces between stars, where the light doesn't reach.",
+                    children: [
+                        { name: "The Abyss", desc: "It stares back." }
+                    ]
+                },
+                { name: "What", desc: "A memory of a dream, fading into the morning light." },
+                { name: "Why", desc: "Because the silence demanded a voice." }
+            ]
+        };
+
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        let selectedNode = null;
+        let audioStarted = false;
+        let isGlitching = false;
+
+        const svg = d3.select("#svg-container")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .call(d3.zoom().scaleExtent([0.3, 3]).on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            }))
+            .append("g");
+
+        const g = svg.append("g");
+
+        const simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(d => d.id).distance(180))
+            .force("charge", d3.forceManyBody().strength(-2500))
+            .force("center", d3.forceCenter(width / 2, height / 4))
+            .force("y", d3.forceY().strength(0.03))
+            .on("tick", ticked);
+
+        let nodes = [];
+        let links = [];
+
+        function update() {
+            const root = d3.hierarchy(data);
+            nodes = root.descendants();
+            links = root.links();
+
+            nodes.forEach((d, i) => {
+                d.id = d.id || "node-" + i;
+            });
+
+            const link = g.selectAll(".link").data(links, d => d.target.id);
+            link.exit().remove();
+            const linkEnter = link.enter().append("path").attr("class", "link");
+            const linkUpdate = linkEnter.merge(link);
+
+            const node = g.selectAll(".node").data(nodes, d => d.id);
+            node.exit().remove();
+
+            const nodeEnter = node.enter()
+                .append("g")
+                .attr("class", "node")
+                .on("click", (event, d) => {
+                    event.stopPropagation();
+                    triggerGlitch(d);
+                });
+
+            nodeEnter.append("circle").attr("r", 4);
+            nodeEnter.append("text")
+                .attr("dy", "-1.8em")
+                .attr("text-anchor", "middle")
+                .text(d => d.data.name);
+
+            const nodeUpdate = nodeEnter.merge(node);
+            nodeUpdate.classed("selected", d => selectedNode && d.id === selectedNode.id);
+
+            simulation.nodes(nodes);
+            simulation.force("link").links(links);
+            simulation.alpha(1).restart();
+        }
+
+        function triggerGlitch(d) {
+            isGlitching = true;
+            selectedNode = d;
+            update();
+
+            g.attr("filter", "url(#glitch-filter)");
+
+            const spasmInterval = setInterval(() => {
+                nodes.forEach(node => {
+                    node.x += (Math.random() - 0.5) * 100;
+                    node.y += (Math.random() - 0.5) * 100;
+                });
+                simulation.alpha(0.5).restart();
+            }, 50);
+
+            setTimeout(() => {
+                clearInterval(spasmInterval);
+                g.attr("filter", null);
+                isGlitching = false;
+                simulation.alpha(1).restart();
+                
+                const panel = document.getElementById("description-panel");
+                const content = document.getElementById("description-content");
+                panel.classList.remove("visible");
+                setTimeout(() => {
+                    content.innerHTML = marked.parse(d.data.desc || "");
+                    panel.classList.add("visible");
+                }, 200);
+            }, 600);
+        }
+
+        function ticked() {
+            g.selectAll(".link")
+                .attr("d", d => {
+                    return `M${d.source.x},${d.source.y}C${d.source.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${d.target.y}`;
+                });
+            g.selectAll(".node").attr("transform", d => `translate(${d.x},${d.y})`);
+        }
+
+        let audioContext, analyser, dataArray, bufferLength;
+
+        function startExperience() {
+            const screen = document.getElementById("start-screen");
+            screen.style.opacity = "0";
+            setTimeout(() => screen.style.display = "none", 2000);
+
+            const player = document.getElementById("audio-player");
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            const source = audioContext.createMediaElementSource(player);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            player.play();
+            audioStarted = true;
+            animate();
+        }
+
+        function animate() {
+            if (!audioStarted) return;
+            requestAnimationFrame(animate);
+            analyser.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+            const average = sum / bufferLength;
+            
+            const pulse = 1 + (average / 255) * 0.5;
+            const opacity = 0.2 + (average / 255) * 0.6;
+
+            if (!isGlitching) {
+                g.selectAll(".node circle")
+                    .attr("r", d => (selectedNode && d.id === selectedNode.id ? 7 : 3) * pulse)
+                    .style("opacity", opacity);
+                
+                
+                g.selectAll(".link")
+                    .style("stroke-opacity", 0.3 + (average / 255) * 0.5)
+                    .style("stroke-width", (1.5 + (average / 255) * 2) + "px");
+
+                if (average > 65) {
+                    nodes.forEach(d => {
+                        d.x += (Math.random() - 0.5) * (average / 30);
+                        d.y += (Math.random() - 0.5) * (average / 30);
+                    });
+                    simulation.alpha(0.05).restart();
+                }
+            }
+        }
+
+        update();
+        window.addEventListener('resize', () => {
+            simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 4));
+            simulation.alpha(1).restart();
+        });
+    </script>
+</body>
+</html>
